@@ -5,6 +5,7 @@ import { LineChart } from 'react-native-gifted-charts';
 import { useColorScheme } from 'nativewind';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../../config/firebase';
+import { predictionData, powerBalanceData } from '../../data/simulatedData';
 import { 
   Tv, 
   Wind, 
@@ -14,7 +15,9 @@ import {
   TrendingDown,
   Activity,
   Zap,
-  Info
+  Info,
+  Sun,
+  Cpu
 } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
@@ -79,12 +82,40 @@ export default function AnalyticsScreen() {
     currentSoC = dynamicChartData[dynamicChartData.length - 1].value;
   }
   
+  // Fuzzy Logic System
+  const getFuzzyAction = (soc: number, loadKw: number) => {
+    const net_margin_kw = -loadKw; // Simplified for live metrics lacking isolated PV
+    
+    if (soc < 22) return 'Battery Protection';
+    if (net_margin_kw < -0.25 && soc < 50) return 'Restrict Non-Essential';
+    if (soc > 70 && net_margin_kw > -0.05) return 'Normal Operation';
+    if (net_margin_kw < -0.05 && soc < 60) return 'Priority Load Mode';
+    return 'Normal Operation';
+  };
+  
+  const fuzzyState = getFuzzyAction(currentSoC, (metrics?.power || 0) / 1000);
+
+  const getFuzzyBadgeStyles = (state: string) => {
+    switch (state) {
+      case 'Battery Protection':
+        return { bg: 'bg-[#FFF0EE] dark:bg-[#2B0D0D]', border: 'border-[#FF453A]', text: 'text-[#FF453A]' };
+      case 'Restrict Non-Essential':
+        return { bg: 'bg-[#FFF8E5] dark:bg-[#2B220D]', border: 'border-[#FF9500]', text: 'text-[#FF9500]' };
+      case 'Priority Load Mode':
+        return { bg: 'bg-[#E5F1FF] dark:bg-[#0D1A2B]', border: 'border-[#0A84FF]', text: 'text-[#0A84FF]' };
+      case 'Normal Operation':
+      default:
+        return { bg: 'bg-[#E8F8EF] dark:bg-[#0D2B1A]', border: 'border-[#00D15E]', text: 'text-[#00D15E]' };
+    }
+  };
+  const fuzzyStyles = getFuzzyBadgeStyles(fuzzyState);
+
   // Relay States
   const [relays, setRelays] = useState([
-    { id: '1', name: 'Entertainment', power: '0.0 kW', state: 'OFF', icon: Tv },
-    { id: '2', name: 'HVAC System', power: '2.4 kW', state: 'AUTO', icon: Wind },
-    { id: '3', name: 'Water Heater', power: '0.0 kW', state: 'AUTO', icon: Droplets },
-    { id: '4', name: 'EV Charger', power: '7.2 kW', state: 'ON', icon: Plug },
+    { id: '1', name: 'Critical Load', power: '0.0 kW', state: 'AUTO', icon: Activity },
+    { id: '2', name: 'Priority Load', power: '2.4 kW', state: 'AUTO', icon: Tv },
+    { id: '3', name: 'Comfort Load', power: '0.0 kW', state: 'AUTO', icon: Wind },
+    { id: '4', name: 'Non-Essential', power: '7.2 kW', state: 'OFF', icon: Plug },
   ]);
 
   const cycleRelayState = (index: number) => {
@@ -103,6 +134,19 @@ export default function AnalyticsScreen() {
     { value: 40 }, { value: 85 }
   ];
 
+  // Map simulated data for charts
+  const aiActualData = predictionData.map(d => ({ value: d.actual, label: d.label }));
+  const aiPredictedData = predictionData.map(d => ({ value: d.predicted }));
+  
+  const balancePvData = powerBalanceData.map(d => ({ value: d.pv, label: d.label }));
+  const balanceLoadData = powerBalanceData.map(d => ({ value: d.load }));
+
+  // Simulated live metrics
+  const currentHourIndex = new Date().getHours();
+  const simCurrentPv = powerBalanceData[currentHourIndex]?.pv || 0;
+  const simPredictedLoad = predictionData[currentHourIndex]?.predicted || 0;
+  const simActualLoad = predictionData[currentHourIndex]?.actual || 0;
+
   // Logs
   const events = [
     { time: '14:22', title: 'Load Shed: Entertainment', reason: 'SoC dropped below 30%, load demand critical.', type: 'shed' },
@@ -112,14 +156,13 @@ export default function AnalyticsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#111111' : '#FAFAFA' }} edges={['top', 'left', 'right']}>
-      <ScrollView className="flex-1" contentContainerClassName="p-6 pb-32" showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1" contentContainerClassName="p-4 pb-32" showsVerticalScrollIndicator={false}>
         
-        {/* Header */}
-        <View className="flex-row justify-between items-center mb-6 mt-2.5">
+        <View className="flex-row justify-between items-center mb-6 mt-2">
           <Text className="font-bold text-2xl text-black dark:text-white">Analytics</Text>
-          <TouchableOpacity className="p-2 bg-black/5 dark:bg-white/10 rounded-full">
-            <Info color={isDark ? '#A3A3A3' : '#666'} size={20} />
-          </TouchableOpacity>
+          <View className={`flex-row items-center ${fuzzyStyles.bg} border ${fuzzyStyles.border} rounded-full px-3 py-1.5`}>
+            <Text className={`font-bold text-[10px] ${fuzzyStyles.text} uppercase tracking-wider`}>{fuzzyState}</Text>
+          </View>
         </View>
 
         {/* Main Chart Card */}
@@ -212,6 +255,124 @@ export default function AnalyticsScreen() {
               </View>
             </View>
           )}
+        </View>
+
+        {/* ML Telemetry Grid */}
+        <Text className="font-bold text-[17px] text-black dark:text-white mb-4 mt-2">Predictive Intelligence (Simulation)</Text>
+        <View className="flex-row justify-between mb-6">
+          <View className="flex-1 bg-white dark:bg-[#1C1C1E] rounded-2xl p-4 shadow-md shadow-black/5 dark:shadow-none border border-[#F0F0F0] dark:border-[#2C2C2E] mr-2">
+            <View className="flex-row items-center mb-2">
+              <Sun color="#F5A623" size={14} />
+              <Text className="font-medium text-[10px] text-[#888] dark:text-[#A3A3A3] ml-1">Simulated PV</Text>
+            </View>
+            <Text className="font-bold text-lg text-black dark:text-white">{simCurrentPv.toFixed(2)} <Text className="text-xs">kW</Text></Text>
+          </View>
+          <View className="flex-1 bg-white dark:bg-[#1C1C1E] rounded-2xl p-4 shadow-md shadow-black/5 dark:shadow-none border border-[#F0F0F0] dark:border-[#2C2C2E] mx-1">
+            <View className="flex-row items-center mb-2">
+              <Activity color={isDark ? '#00D15E' : '#177AD5'} size={14} />
+              <Text className="font-medium text-[10px] text-[#888] dark:text-[#A3A3A3] ml-1">Actual Load</Text>
+            </View>
+            <Text className="font-bold text-lg text-black dark:text-white">{simActualLoad.toFixed(2)} <Text className="text-xs">kW</Text></Text>
+          </View>
+          <View className="flex-1 bg-white dark:bg-[#1C1C1E] rounded-2xl p-4 shadow-md shadow-black/5 dark:shadow-none border border-[#F0F0F0] dark:border-[#2C2C2E] ml-2">
+            <View className="flex-row items-center mb-2">
+              <Cpu color="#9b51e0" size={14} />
+              <Text className="font-medium text-[10px] text-[#888] dark:text-[#A3A3A3] ml-1">RF Predict</Text>
+            </View>
+            <Text className="font-bold text-lg text-[#9b51e0] dark:text-[#b47af0]">{simPredictedLoad.toFixed(2)} <Text className="text-xs">kW</Text></Text>
+          </View>
+        </View>
+
+        {/* AI Prediction Chart */}
+        <View className="bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 mb-6 shadow-md shadow-black/5 dark:shadow-none border border-[#F0F0F0] dark:border-[#2C2C2E]">
+          <View className="flex-row justify-between items-start mb-6">
+            <View>
+              <Text className="font-medium text-xs text-[#888] dark:text-[#A3A3A3] mb-1">Load Forecasting (Next Hour)</Text>
+              <Text className="font-bold text-lg text-black dark:text-white">Actual vs Random Forest</Text>
+            </View>
+          </View>
+          <View className="items-center -ml-4 overflow-hidden">
+            <LineChart
+              data={aiActualData}
+              data2={aiPredictedData}
+              color1={isDark ? '#FFF' : '#000'}
+              color2="#9b51e0"
+              thickness1={2}
+              thickness2={3}
+              hideDataPoints
+              hideRules
+              hideYAxisText
+              hideAxesAndRules
+              width={width - 70}
+              height={140}
+              spacing={(width - 70) / Math.max(1, aiActualData.length - 1)}
+              curved
+              isAnimated
+              initialSpacing={0}
+              endSpacing={0}
+              yAxisThickness={0}
+              xAxisThickness={0}
+            />
+          </View>
+          <View className="flex-row justify-center mt-4">
+            <View className="flex-row items-center mr-6">
+              <View className="w-3 h-1 bg-black dark:bg-white mr-2" />
+              <Text className="text-xs text-[#888] dark:text-[#A3A3A3]">Actual Load</Text>
+            </View>
+            <View className="flex-row items-center">
+              <View className="w-3 h-1 bg-[#9b51e0] mr-2" />
+              <Text className="text-xs text-[#888] dark:text-[#A3A3A3]">RF Prediction</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Power Balance Chart */}
+        <View className="bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 mb-6 shadow-md shadow-black/5 dark:shadow-none border border-[#F0F0F0] dark:border-[#2C2C2E]">
+          <View className="flex-row justify-between items-start mb-6">
+            <View>
+              <Text className="font-medium text-xs text-[#888] dark:text-[#A3A3A3] mb-1">Energy Margins</Text>
+              <Text className="font-bold text-lg text-black dark:text-white">PV Generation vs Load</Text>
+            </View>
+          </View>
+          <View className="items-center -ml-4 overflow-hidden">
+            <LineChart
+              areaChart
+              data={balancePvData}
+              data2={balanceLoadData}
+              color1="#F5A623"
+              color2={isDark ? '#00D15E' : '#177AD5'}
+              startFillColor1="#F5A623"
+              endFillColor1="#F5A623"
+              startFillColor2={isDark ? '#00D15E' : '#177AD5'}
+              endFillColor2={isDark ? '#00D15E' : '#177AD5'}
+              startOpacity={0.4}
+              endOpacity={0.0}
+              thickness={2}
+              hideDataPoints
+              hideRules
+              hideYAxisText
+              hideAxesAndRules
+              width={width - 70}
+              height={140}
+              spacing={(width - 70) / Math.max(1, balancePvData.length - 1)}
+              curved
+              isAnimated
+              initialSpacing={0}
+              endSpacing={0}
+              yAxisThickness={0}
+              xAxisThickness={0}
+            />
+          </View>
+          <View className="flex-row justify-center mt-4">
+            <View className="flex-row items-center mr-6">
+              <View className="w-3 h-3 rounded-full bg-[#F5A623] mr-2" />
+              <Text className="text-xs text-[#888] dark:text-[#A3A3A3]">Solar PV</Text>
+            </View>
+            <View className="flex-row items-center">
+              <View className="w-3 h-3 rounded-full bg-[#177AD5] dark:bg-[#00D15E] mr-2" />
+              <Text className="text-xs text-[#888] dark:text-[#A3A3A3]">Load Demand</Text>
+            </View>
+          </View>
         </View>
 
         {/* Small Metrics Row */}
