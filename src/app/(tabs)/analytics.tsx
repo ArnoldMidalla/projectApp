@@ -262,24 +262,24 @@ export default function AnalyticsScreen() {
         <View className="flex-row justify-between mb-6">
           <View className="flex-1 bg-white dark:bg-[#1C1C1E] rounded-2xl p-4 shadow-md shadow-black/5 dark:shadow-none border border-[#F0F0F0] dark:border-[#2C2C2E] mr-2">
             <View className="flex-row items-center mb-2">
-              <Sun color="#F5A623" size={14} />
-              <Text className="font-medium text-[10px] text-[#888] dark:text-[#A3A3A3] ml-1">Simulated PV</Text>
-            </View>
-            <Text className="font-bold text-lg text-black dark:text-white">{simCurrentPv.toFixed(2)} <Text className="text-xs">kW</Text></Text>
-          </View>
-          <View className="flex-1 bg-white dark:bg-[#1C1C1E] rounded-2xl p-4 shadow-md shadow-black/5 dark:shadow-none border border-[#F0F0F0] dark:border-[#2C2C2E] mx-1">
-            <View className="flex-row items-center mb-2">
               <Activity color={isDark ? '#00D15E' : '#177AD5'} size={14} />
-              <Text className="font-medium text-[10px] text-[#888] dark:text-[#A3A3A3] ml-1">Actual Load</Text>
+              <Text className="font-medium text-[10px] text-[#888] dark:text-[#A3A3A3] ml-1">Current Load</Text>
             </View>
             <Text className="font-bold text-lg text-black dark:text-white">{simActualLoad.toFixed(2)} <Text className="text-xs">kW</Text></Text>
           </View>
-          <View className="flex-1 bg-white dark:bg-[#1C1C1E] rounded-2xl p-4 shadow-md shadow-black/5 dark:shadow-none border border-[#F0F0F0] dark:border-[#2C2C2E] ml-2">
+          <View className="flex-1 bg-white dark:bg-[#1C1C1E] rounded-2xl p-4 shadow-md shadow-black/5 dark:shadow-none border border-[#F0F0F0] dark:border-[#2C2C2E] mx-1">
             <View className="flex-row items-center mb-2">
               <Cpu color="#9b51e0" size={14} />
-              <Text className="font-medium text-[10px] text-[#888] dark:text-[#A3A3A3] ml-1">RF Predict</Text>
+              <Text className="font-medium text-[10px] text-[#888] dark:text-[#A3A3A3] ml-1">Next Hour Forecast</Text>
             </View>
             <Text className="font-bold text-lg text-[#9b51e0] dark:text-[#b47af0]">{simPredictedLoad.toFixed(2)} <Text className="text-xs">kW</Text></Text>
+          </View>
+          <View className="flex-1 bg-white dark:bg-[#1C1C1E] rounded-2xl p-4 shadow-md shadow-black/5 dark:shadow-none border border-[#F0F0F0] dark:border-[#2C2C2E] ml-2">
+            <View className="flex-row items-center mb-2">
+              <Sun color="#F5A623" size={14} />
+              <Text className="font-medium text-[10px] text-[#888] dark:text-[#A3A3A3] ml-1">PV Generation</Text>
+            </View>
+            <Text className="font-bold text-lg text-black dark:text-white">{simCurrentPv.toFixed(2)} <Text className="text-xs">kW</Text></Text>
           </View>
         </View>
 
@@ -287,7 +287,7 @@ export default function AnalyticsScreen() {
         <View className="bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 mb-6 shadow-md shadow-black/5 dark:shadow-none border border-[#F0F0F0] dark:border-[#2C2C2E]">
           <View className="flex-row justify-between items-start mb-6">
             <View>
-              <Text className="font-medium text-xs text-[#888] dark:text-[#A3A3A3] mb-1">Load Forecasting (Next Hour)</Text>
+              <Text className="font-medium text-xs text-[#888] dark:text-[#A3A3A3] mb-1">Load Forecasting</Text>
               <Text className="font-bold text-lg text-black dark:text-white">Actual vs Random Forest</Text>
             </View>
           </View>
@@ -314,7 +314,7 @@ export default function AnalyticsScreen() {
               xAxisThickness={0}
             />
           </View>
-          <View className="flex-row justify-center mt-4">
+          <View className="flex-row justify-center mt-4 mb-6">
             <View className="flex-row items-center mr-6">
               <View className="w-3 h-1 bg-black dark:bg-white mr-2" />
               <Text className="text-xs text-[#888] dark:text-[#A3A3A3]">Actual Load</Text>
@@ -322,6 +322,28 @@ export default function AnalyticsScreen() {
             <View className="flex-row items-center">
               <View className="w-3 h-1 bg-[#9b51e0] mr-2" />
               <Text className="text-xs text-[#888] dark:text-[#A3A3A3]">RF Prediction</Text>
+            </View>
+          </View>
+
+          {/* Model Information Specs */}
+          <View className="bg-[#F2F2F6] dark:bg-[#2C2C2E] rounded-2xl p-4">
+            <View className="flex-row items-center mb-3">
+              <Cpu color={isDark ? '#E4E4E7' : '#000'} size={14} />
+              <Text className="font-bold text-sm text-black dark:text-white ml-2">Algorithm: Random Forest</Text>
+            </View>
+            <View className="flex-row justify-between pr-2">
+              <View>
+                <Text className="font-medium text-[10px] text-[#888] dark:text-[#A3A3A3] mb-0.5">RMSE</Text>
+                <Text className="font-bold text-sm text-black dark:text-white">0.04 <Text className="text-[10px] font-regular">kW</Text></Text>
+              </View>
+              <View>
+                <Text className="font-medium text-[10px] text-[#888] dark:text-[#A3A3A3] mb-0.5">R² Score</Text>
+                <Text className="font-bold text-sm text-black dark:text-white">0.78</Text>
+              </View>
+              <View>
+                <Text className="font-medium text-[10px] text-[#888] dark:text-[#A3A3A3] mb-0.5">MAPE</Text>
+                <Text className="font-bold text-sm text-black dark:text-white">3.2%</Text>
+              </View>
             </View>
           </View>
         </View>

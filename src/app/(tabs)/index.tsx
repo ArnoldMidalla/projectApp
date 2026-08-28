@@ -93,12 +93,39 @@ export default function HomeScreen() {
     }
   }, [rawHistory, isDark]);
 
+  // Fuzzy Logic System
+  const BATTERY_CAPACITY_KWH = 2.4;
+  const currentSoC = metrics ? Math.max(0, 100 - (metrics.energy_today / BATTERY_CAPACITY_KWH) * 100) : 100;
+  
+  const getFuzzyState = (soc: number, loadKw: number) => {
+    const net_margin_kw = -loadKw;
+    if (soc < 22) return { mode: 'Battery Protection', reason: 'Shedding non-essential loads due to critically low battery SoC.' };
+    if (net_margin_kw < -0.25 && soc < 50) return { mode: 'Restrict Non-Essential', reason: 'Deferring non-essential loads due to low solar generation margin.' };
+    if (soc > 70 && net_margin_kw > -0.05) return { mode: 'Normal Operation', reason: 'Sufficient generation and battery reserves available. All loads permitted.' };
+    if (net_margin_kw < -0.05 && soc < 60) return { mode: 'Priority Load Mode', reason: 'Prioritizing essential loads to conserve remaining battery energy.' };
+    return { mode: 'Normal Operation', reason: 'System operating within standard parameters.' };
+  };
+
+  const fuzzyState = getFuzzyState(currentSoC, (metrics?.power || 0) / 1000);
+
+  const getSystemStatus = () => {
+    if (currentSoC < 30) return { text: '🟠 Battery Drain Warning', bg: 'bg-[#FFF8E5] dark:bg-[#2B220D]', border: 'border-[#FF9500]', textStyle: 'text-[#FF9500]' };
+    if ((metrics?.power || 0) > 1500) return { text: '🟠 High Load Warning', bg: 'bg-[#FFF8E5] dark:bg-[#2B220D]', border: 'border-[#FF9500]', textStyle: 'text-[#FF9500]' };
+    return { text: '🟢 System Healthy', bg: 'bg-[#E8F8EF] dark:bg-[#0D2B1A]', border: 'border-[#00D15E]', textStyle: 'text-[#00D15E]' };
+  };
+  const status = getSystemStatus();
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#111111' : '#FAFAFA' }} edges={['top', 'left', 'right']}>
       <ScrollView className="flex-1" contentContainerClassName="p-6 pb-32" showsVerticalScrollIndicator={false}>
         
+        {/* System Alert Banner */}
+        <View className={`flex-row justify-center items-center py-2 px-4 rounded-full border mb-6 ${status.bg} ${status.border}`}>
+          <Text className={`font-bold text-xs uppercase tracking-wider ${status.textStyle}`}>{status.text}</Text>
+        </View>
+
         {/* Header */}
-        <View className="flex-row justify-between items-center mb-7 mt-2.5">
+        <View className="flex-row justify-between items-center mb-7">
           <View>
             <Text className="font-bold text-2xl text-black dark:text-white mb-1">Hello, Arnold</Text>
             <Text className="font-regular text-sm text-[#888] dark:text-[#A3A3A3]">Live System Dashboard</Text>
@@ -107,6 +134,20 @@ export default function HomeScreen() {
           <TouchableOpacity onPress={toggleColorScheme} className="p-2 bg-black/5 dark:bg-white/10 rounded-full">
             {isDark ? <Sun color="#fff" size={20} /> : <Moon color="#000" size={20} />}
           </TouchableOpacity>
+        </View>
+
+        {/* AI Supervisor Card */}
+        <View className="bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 mb-8 shadow-md shadow-black/5 dark:shadow-none border border-[#F0F0F0] dark:border-[#2C2C2E]">
+          <View className="flex-row items-center mb-3">
+            <View className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 items-center justify-center mr-3">
+              <Activity color={isDark ? '#00D15E' : '#177AD5'} size={16} />
+            </View>
+            <Text className="font-bold text-lg text-black dark:text-white">AI Supervisor Mode</Text>
+          </View>
+          <View className="bg-[#F2F2F6] dark:bg-[#2C2C2E] rounded-xl p-4">
+            <Text className="font-bold text-base text-black dark:text-white mb-1">{fuzzyState.mode}</Text>
+            <Text className="font-regular text-sm text-[#666] dark:text-[#A3A3A3] leading-5">{fuzzyState.reason}</Text>
+          </View>
         </View>
 
         {/* Live Grid Metrics */}
