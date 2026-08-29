@@ -1,11 +1,10 @@
 import { Tabs } from 'expo-router';
 import { Home, BarChart2, Settings } from 'lucide-react-native';
-import { useColorScheme } from 'nativewind';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
-  const { colorScheme } = useColorScheme();
+  const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
   const icons = [Home, BarChart2, Settings];
@@ -41,26 +40,16 @@ function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
               style={styles.tabButton}
               activeOpacity={0.7}
             >
-              {isFocused ? (
-                <View style={[
-                  styles.activeIndicator,
-                  { backgroundColor: isDark ? '#00D15E15' : '#00000008' }
-                ]}>
-                  <Icon
-                    color={activeColor}
-                    size={22}
-                    fill={activeColor}
-                    strokeWidth={2}
-                  />
-                </View>
-              ) : (
+              <View style={[
+                styles.activeIndicator,
+                isFocused && { backgroundColor: isDark ? '#00D15E15' : '#00000008' }
+              ]}>
                 <Icon
-                  color={inactiveColor}
+                  color={isFocused ? activeColor : inactiveColor}
                   size={22}
-                  fill="none"
-                  strokeWidth={1.5}
+                  strokeWidth={2}
                 />
-              )}
+              </View>
             </TouchableOpacity>
           );
         })}
@@ -92,12 +81,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   activeIndicator: {
-    padding: 8,
-    borderRadius: 16,
+    padding: 10,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
 });
 

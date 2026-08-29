@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Switch, TouchableOpacity, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronRight } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
+import { ref, onValue } from 'firebase/database';
+import { db } from '../../config/firebase';
 
 interface SettingsGroupProps {
   title: string;
@@ -14,7 +16,7 @@ const SettingsGroup = ({ title, children }: SettingsGroupProps) => (
     <Text className="font-medium text-xs text-[#888] dark:text-[#A3A3A3] mb-2 ml-4 uppercase tracking-wider">
       {title}
     </Text>
-    <View className="bg-white dark:bg-[#1C1C1E] rounded-2xl overflow-hidden">
+    <View className="bg-white dark:bg-[#1C1C1E] rounded-2xl overflow-hidden shadow-md shadow-black/5 dark:shadow-none border border-[#F0F0F0] dark:border-[#2C2C2E]">
       {children}
     </View>
   </View>
@@ -22,7 +24,7 @@ const SettingsGroup = ({ title, children }: SettingsGroupProps) => (
 
 interface SettingsRowProps {
   label: string;
-  value?: string;
+  value?: React.ReactNode;
   isLast?: boolean;
   type?: 'link' | 'toggle' | 'input' | 'segment';
   toggleValue?: boolean;
@@ -58,7 +60,7 @@ const SettingsRow = ({
       <View className="flex-row items-center justify-end flex-1">
         {type === 'link' && (
           <>
-            {value && <Text className="font-regular text-[15px] text-[#888] dark:text-[#A3A3A3] mr-2">{value}</Text>}
+            {value && <Text className="font-regular text-[15px] text-[#888] dark:text-[#A3A3A3] mr-2 text-right">{value}</Text>}
             <ChevronRight size={18} color={isDark ? '#666' : '#CCC'} />
           </>
         )}
@@ -111,14 +113,30 @@ export default function SettingsScreen() {
   const { colorScheme, setColorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
 
+  // Live Firebase connection status
+  const [isConnected, setIsConnected] = useState(false);
+
+  useEffect(() => {
+    const connectedRef = ref(db, '.info/connected');
+    const unsub = onValue(connectedRef, (snap) => {
+      setIsConnected(snap.val() === true);
+    });
+    return () => unsub();
+  }, []);
+
   // State for form values
   const [notifications, setNotifications] = useState(true);
-  const [socCritical, setSocCritical] = useState('30%');
+  const [socCritical, setSocCritical] = useState('22%');
   const [socTarget, setSocTarget] = useState('85%');
-  const [capacity, setCapacity] = useState('200 Ah');
+  const [capacity, setCapacity] = useState('2.4 kWh');
   const [alpha, setAlpha] = useState('0.30');
   const [beta, setBeta] = useState('0.50');
   const [gamma, setGamma] = useState('0.20');
+  
+  // ML State
+  const [mlModel, setMlModel] = useState('RF');
+  const [edgeInference, setEdgeInference] = useState(true);
+  const [fuzzyEnabled, setFuzzyEnabled] = useState(true);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#111111' : '#FAFAFA' }} edges={['top', 'left', 'right']}>
@@ -128,10 +146,10 @@ export default function SettingsScreen() {
           Settings
         </Text>
 
-        <SettingsGroup title="Connection Config">
-          <SettingsRow label="Wi-Fi Network" value="MyHome_5G" isDark={isDark} />
-          <SettingsRow label="MQTT Broker" value="mqtt://192.168.1.50" isDark={isDark} />
-          <SettingsRow label="REST Endpoint" value="https://api.watt.nest" isLast isDark={isDark} />
+        <SettingsGroup title="IoT Data Architecture">
+          <SettingsRow label="Database Status" value={isConnected ? 'Connected 🟢' : 'Offline 🔴'} isDark={isDark} />
+          <SettingsRow label="Data Source" value="Firebase RTDB" isDark={isDark} />
+          <SettingsRow label="Sync Frequency" value="Real-time (WebSockets)" isLast isDark={isDark} />
         </SettingsGroup>
 
         <SettingsGroup title="Battery Parameters">
@@ -159,9 +177,35 @@ export default function SettingsScreen() {
           />
         </SettingsGroup>
 
-        <SettingsGroup title="POA-Fuzzy Objective Weights">
+        <SettingsGroup title="Machine Learning & Prediction">
           <SettingsRow 
-            label="α (Grid Dependency)" 
+            label="Forecasting Model" 
+            type="segment" 
+            segmentOptions={['RF', 'GBM', 'ARIMA']}
+            activeSegment={mlModel}
+            onSegmentChange={setMlModel}
+            isDark={isDark} 
+          />
+          <SettingsRow 
+            label="Run inference on-device" 
+            type="toggle" 
+            toggleValue={edgeInference}
+            onToggle={setEdgeInference}
+            isLast
+            isDark={isDark} 
+          />
+        </SettingsGroup>
+
+        <SettingsGroup title="Fuzzy Logic & POA Control">
+          <SettingsRow 
+            label="Enable Fuzzy Logic Overrides" 
+            type="toggle" 
+            toggleValue={fuzzyEnabled}
+            onToggle={setFuzzyEnabled}
+            isDark={isDark} 
+          />
+          <SettingsRow 
+            label="α (Critical Load Bias)" 
             type="input"
             inputValue={alpha}
             onInputChange={setAlpha}
@@ -205,7 +249,7 @@ export default function SettingsScreen() {
         
         <SettingsGroup title="System">
           <SettingsRow label="Export Diagnostic Logs" value="CSV" isDark={isDark} />
-          <SettingsRow label="Firmware Version" value="v2.4.1 (Fuzzy-Core)" isLast isDark={isDark} />
+          <SettingsRow label="Firmware Version" value="v1.0.0 (POA-Fuzzy-ML Core)" isLast isDark={isDark} />
         </SettingsGroup>
 
       </ScrollView>
