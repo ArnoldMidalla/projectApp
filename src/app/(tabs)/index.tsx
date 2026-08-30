@@ -35,6 +35,7 @@ export default function HomeScreen() {
   const [historyData, setHistoryData] = useState<any[]>([]);
   const [dbStatus, setDbStatus] = useState<string>("");
   const [relayState, setRelayState] = useState<string>("");
+  const [userOverride, setUserOverride] = useState(false);
 
   // 1. Fetch raw data via real-time SDK
   useEffect(() => {
@@ -200,6 +201,20 @@ export default function HomeScreen() {
   const fuzzyState = getFuzzyState(currentSoC, (metrics?.power || 0) / 1000);
 
   const getSystemStatus = () => {
+    if (isDangerousState && userOverride)
+      return {
+        text: "⚠️ AI Overridden (Manual Control)",
+        bg: "bg-[#FFF8E5] dark:bg-[#2B220D]",
+        border: "border-[#FF9500]",
+        textStyle: "text-[#FF9500]",
+      };
+    if (isDangerousState && !userOverride && relayState === "OFF")
+      return {
+        text: "🛡️ AI Protection Shutdown",
+        bg: "bg-[#FBE8E8] dark:bg-[#2B0D0D]",
+        border: "border-[#FF453A]",
+        textStyle: "text-[#FF453A]",
+      };
     if (currentSoC < 30)
       return {
         text: "🟠 Battery Drain Warning",
@@ -221,7 +236,6 @@ export default function HomeScreen() {
       textStyle: "text-[#00D15E]",
     };
   };
-  const status = getSystemStatus();
 
   const [rfPrediction, setRfPrediction] = useState<{ predictedValue: number, trainingSize: number } | null>(null);
   const [isPredicting, setIsPredicting] = useState(false);
@@ -262,6 +276,22 @@ export default function HomeScreen() {
     }
   }
 
+  // AI Supervisor Control Loop (Active Protection)
+  const availableEnergyKwH = BATTERY_CAPACITY_KWH * (currentSoC / 100);
+  const isDangerousState = currentSoC <= 30 || predictedNextHourKw > availableEnergyKwH;
+
+  useEffect(() => {
+    if (isDangerousState && relayState === "ON" && !userOverride) {
+      // AI Shutdown
+      set(ref(db, "meter/relay/state"), "OFF");
+    } else if (!isDangerousState && userOverride) {
+      // Danger has passed, silently clear override so AI can protect again next time
+      setUserOverride(false);
+    }
+  }, [isDangerousState, relayState, userOverride]);
+
+  const status = getSystemStatus();
+
   return (
     <SafeAreaView
       style={{ flex: 1, backgroundColor: isDark ? "#111111" : "#FAFAFA" }}
@@ -273,7 +303,7 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* System Alert Banner */}
-        {/* <View
+        <View
           className={`flex-row justify-center items-center py-2 px-4 rounded-full border mb-6 ${status.bg} ${status.border}`}
         >
           <Text
@@ -281,15 +311,18 @@ export default function HomeScreen() {
           >
             {status.text}
           </Text>
-        </View> */}
+        </View>
 
         {/* Header */}
         <View className="flex-row justify-between items-center mb-7">
           <View>
-            <Text className="font-bold text-2xl text-black dark:text-white mb-1">
-              Hello, Arnold
+            <Text className="text-[#888] dark:text-[#A3A3A3] text-sm font-medium mb-1">
+              Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 18 ? 'Afternoon' : 'Evening'},
             </Text>
-            <Text className="font-regular text-sm text-[#888] dark:text-[#A3A3A3]">
+            <Text className="font-bold text-3xl text-black dark:text-white mb-1">
+              Arnold
+            </Text>
+            <Text className="font-regular text-sm text-[#888] dark:text-[#A3A3A3] mt-1">
               Live System Dashboard
             </Text>
             {dbStatus ? (
@@ -510,7 +543,10 @@ export default function HomeScreen() {
             {/* Action buttons */}
             <View className="flex-row gap-3">
               <TouchableOpacity
-                onPress={() => set(ref(db, "meter/relay/state"), "OFF")}
+                onPress={() => {
+                  set(ref(db, "meter/relay/state"), "OFF");
+                  setUserOverride(true);
+                }}
                 disabled={relayState === "OFF"}
                 className={`flex-1 rounded-2xl py-3 items-center ${
                   relayState === "OFF"
@@ -525,7 +561,10 @@ export default function HomeScreen() {
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => set(ref(db, "meter/relay/state"), "ON")}
+                onPress={() => {
+                  set(ref(db, "meter/relay/state"), "ON");
+                  setUserOverride(true);
+                }}
                 disabled={relayState === "ON"}
                 className={`flex-1 rounded-2xl py-3 items-center ${
                   relayState === "ON"
